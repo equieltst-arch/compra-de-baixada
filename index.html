@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Bucagrans - Gestão de Folgas PCH</title>
+
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#222}
+    
+    .header{background:linear-gradient(135deg,#0a1f3d 0%,#1a3a6b 60%,#8b0000 100%);color:white;padding:13px 16px;display:flex;align-items:center;justify-content:space-between}
+    .hT h1{font-size:16px;font-weight:800}
+    .hT p{font-size:9px;opacity:.8;margin-top:2px;text-transform:uppercase;letter-spacing:.5px}
+    .firebase-badge{font-size:9px;background:rgba(255,152,0,0.25);border:1px solid rgba(255,152,0,0.5);color:#ffcc80;padding:3px 8px;border-radius:20px;display:flex;align-items:center;gap:4px}
+    .firebase-badge::before{content:"🔥"}
+    
+    .tabs{display:flex;gap:6px;margin:12px 12px 5px}
+    .tab{flex:1;padding:10px 4px;border-radius:20px;border:none;cursor:pointer;font-size:11px;font-weight:600;background:#e0e4e8;color:#555}
+    .tab.on{background:#0a1f3d;color:white}
+
+    .tbox{margin:8px 12px 12px;background:white;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.08);overflow:hidden;padding:16px}
+    .sdiv{padding:0 0 10px;font-size:10px;font-weight:700;color:#8b0000;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid #f0f2f5;margin-bottom:15px}
+    
+    label{display:block;font-size:11px;font-weight:700;color:#0a1f3d;margin-bottom:5px;text-transform:uppercase}
+    input, select{width:100%;border:1.5px solid #dde3ea;border-radius:8px;padding:11px;font-size:14px;outline:none;margin-bottom:12px;background:#fcfdfe}
+    
+    .btn-calc{width:100%;background:#0a1f3d;color:white;border:none;border-radius:8px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px}
+    .btn-print{background:#8b0000;display:none}
+
+    .total-card{background:#fdf2f2;border:2px solid #8b0000;border-radius:10px;padding:15px;margin-bottom:15px;text-align:center}
+    .total-val{font-size:22px;font-weight:800;color:#8b0000}
+
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    thead th{background:#0a1f3d;color:white;padding:10px;text-align:left;font-size:10px;text-transform:uppercase}
+    tbody td{padding:10px;border-bottom:1px solid #f0f2f5}
+    .search-box{background:#fff;width:100%;padding:10px;border-radius:10px;margin-bottom:10px;border:1.5px solid #dde3ea}
+
+    /* Toast */
+    #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#0a1f3d;color:white;padding:12px 24px;border-radius:30px;font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .3s;z-index:9999;display:flex;align-items:center;gap:8px}
+    #toast.show{opacity:1}
+
+    /* Loading spinner */
+    .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* Status de conexão */
+    #status-firebase{font-size:10px;text-align:center;padding:6px;margin:0 12px 5px;border-radius:8px;font-weight:600}
+    #status-firebase.conectado{background:#e8f5e9;color:#2e7d32}
+    #status-firebase.erro{background:#fdecea;color:#c62828}
+    #status-firebase.carregando{background:#fff8e1;color:#f57f17}
+
+    /* RELATÓRIO PARA IMPRESSÃO */
+    #relatorio{display:none;background:white;padding:30px;color:black;border:1px solid #ddd;margin:12px;border-radius:8px}
+    .assinatura-area{display:flex;justify-content:space-between;margin-top:50px;text-align:center}
+    .linha{border-top:1px solid black;width:220px;padding-top:5px;font-size:11px}
+
+    @media print{
+      body *{visibility:hidden}
+      #relatorio,#relatorio *{visibility:visible}
+      #relatorio{position:absolute;left:0;top:0;width:100%;border:none;padding:0}
+    }
+  </style>
+
+</head>
+<body>
+
+  <div class="header no-print">
+    <div class="hT">
+      <h1>SISTEMA DE COMPRA</h1>
+      <p>PCH LEBON REGIS - GESTÃO DE FOLGAS</p>
+    </div>
+    <div class="firebase-badge">Firebase</div>
+  </div>
+
+  <div id="status-firebase" class="carregando">⏳ Conectando ao banco de dados...</div>
+
+  <div class="tabs no-print">
+    <button class="tab on" onclick="mudarAba(this, 'aba-calc')">CALCULAR</button>
+    <button class="tab" onclick="mudarAba(this, 'aba-hist')">HISTÓRICO</button>
+    <button class="tab" onclick="mudarAba(this, 'aba-passagem')">PASSAGENS</button>
+  </div>
+
+  <!-- ABA 1: CALCULADORA -->
+
+  <div id="aba-calc" class="aba-content no-print">
+    <div class="tbox">
+      <div class="sdiv">Novo Cálculo de Indenização</div>
+      <label>Nome do Colaborador</label>
+      <input type="text" id="nome" placeholder="Nome Completo">
+
+```
+  <label>Salário Base (R$)</label>
+  <input type="number" id="salario" placeholder="Ex: 3500">
+
+  <label>Regra de Distância / Período</label>
+  <select id="periodo">
+    <option value="0">Selecione a regra...</option>
+    <option value="3">Até 500 km (60 dias - 2 dias folga)</option>
+    <option value="5">501 km a 1.000 km (75 dias - 5 dias folga)</option>
+    <option value="7">Acima de 1.000 km (90 dias - 7 dias folga)</option>
+  </select>
+
+  <label>Passagens / Trechos</label>
+  <div id="lista-passagens-input"></div>
+  <button type="button" class="btn-calc" style="background:#1a3a6b;margin-top:5px;font-size:11px" onclick="adicionarCampoPassagem()">+ ADICIONAR TRECHO / PASSAGEM</button>
+
+  <button id="btnGerar" class="btn-calc" style="margin-top:20px" onclick="gerarRelatorio()">GERAR RELATÓRIO E SALVAR</button>
+  <button id="btnPrint" class="btn-calc btn-print" onclick="window.print()">IMPRIMIR / PDF ↗️</button>
+</div>
+```
+
+  </div>
+
+  <!-- ABA 2: HISTÓRICO -->
+
+  <div id="aba-hist" class="aba-content no-print" style="display:none">
+    <div class="tbox">
+      <div class="sdiv">Relatório Mensal de Gastos</div>
+      <div class="total-card">
+        <div style="font-size:10px;text-transform:uppercase;font-weight:700;color:#555">Gasto Total Acumulado</div>
+        <div class="total-val" id="gastoTotalAcumulado">R$ 0,00</div>
+      </div>
+      <input type="text" id="buscaHist" class="search-box" placeholder="🔍 Pesquisar colaborador..." onkeyup="filtrarHistorico()">
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>Data</th><th>Nome</th><th>Total (R$)</th><th>Ação</th></tr>
+          </thead>
+          <tbody id="corpoHist"></tbody>
+        </table>
+      </div>
+      <div id="hist-loading" style="text-align:center;padding:20px;color:#888;font-size:12px">Carregando histórico...</div>
+      <button class="btn-calc" style="margin-top:20px;background:#555" onclick="limparHistorico()">LIMPAR TUDO (NOVO MÊS)</button>
+    </div>
+  </div>
+
+  <!-- ABA 3: PASSAGENS -->
+
+  <div id="aba-passagem" class="aba-content no-print" style="display:none">
+    <div class="tbox" style="text-align:center">
+      <div class="sdiv">Consulta Quero Passagem</div>
+      <a href="https://queropassagem.com.br" target="_blank" style="text-decoration:none">
+        <button class="btn-calc" style="background:#8b0000;width:auto;padding:12px 25px">ABRIR SITE DE PASSAGENS ↗️</button>
+      </a>
+    </div>
+  </div>
+
+  <!-- RELATÓRIO PARA IMPRESSÃO -->
+
+  <div id="relatorio">
+    <div style="text-align:center;margin-bottom:10px">
+      <img src="logo-pch.png" style="width:120px;height:auto" onerror="this.style.display='none'">
+    </div>
+    <h2 style="text-align:center;border-bottom:2px solid #0a1f3d;padding-bottom:10px;font-size:18px">DEMONSTRATIVO DE COMPRA DE FOLGAS</h2>
+    <br>
+    <p><strong>UNIDADE:</strong> PCH LEBON REGIS</p>
+    <p><strong>DATA:</strong> <span id="rel-data"></span></p>
+    <hr style="margin:15px 0">
+    <p><strong>COLABORADOR:</strong> <span id="rel-nome"></span></p>
+    <br>
+
+```
+<div style="background:#f9f9f9;padding:12px;border-radius:8px;border:1px solid #ddd;margin-bottom:15px">
+  <p style="font-size:11px;font-weight:bold;color:#0a1f3d;margin-bottom:5px">POLÍTICA DE DESLOCAMENTO E FOLGAS:</p>
+  <ul style="font-size:10px;list-style:none;line-height:1.5;color:#444">
+    <li><strong>1. Até 500 km:</strong> A cada 60 dias de trabalho, direito a 2 dias de folga (Seg a Ter).</li>
+    <li><strong>2. De 501 km a 1.000 km:</strong> A cada 75 dias de trabalho, direito a 5 dias de folga (Sex a Ter).</li>
+    <li><strong>3. Acima de 1.000 km:</strong> A cada 90 dias de trabalho, direito a 7 dias de folga (Sex a Qui).</li>
+  </ul>
+  <p style="font-size:10px;margin-top:8px;border-top:1px dashed #ccc;padding-top:8px">
+    <strong>Regra Aplicada:</strong> <span id="rel-regra-txt" style="font-weight:bold;color:#8b0000"></span><br>
+    <strong>Cálculo:</strong> (Salário Base / 220h) * 8h * Dias de direito.
+  </p>
+</div>
+
+<table style="width:100%;border-collapse:collapse;border:1px solid #ddd">
+  <tr style="background:#f4f4f4">
+    <th style="padding:10px;border:1px solid #ddd;text-align:left">Descrição do Lançamento</th>
+    <th style="padding:10px;border:1px solid #ddd;text-align:right">Valor</th>
+  </tr>
+  <tr>
+    <td style="padding:10px;border:1px solid #ddd">Indenização de <span id="rel-dias"></span> dias de folga remunerada (Base R$ <span id="rel-sal"></span>)</td>
+    <td style="padding:10px;border:1px solid #ddd;text-align:right">R$ <span id="rel-val-indeniza"></span></td>
+  </tr>
+  <tbody id="rel-lista-passagens"></tbody>
+  <tr style="font-weight:bold;background:#eee;font-size:14px">
+    <td style="padding:10px;border:1px solid #ddd">VALOR LÍQUIDO A RECEBER</td>
+    <td style="padding:10px;border:1px solid #ddd;text-align:right;color:#1a6b35">R$ <span id="rel-total"></span></td>
+  </tr>
+</table>
+
+<div style="margin-top:20px">
+  <p><strong>Comprovantes Anexados:</strong></p>
+  <div id="rel-prints-container" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px"></div>
+</div>
+
+<div class="assinatura-area">
+  <div class="linha">Responsável PCH Lebon Regis</div>
+  <div class="linha">Assinatura do Colaborador</div>
+</div>
+```
+
+  </div>
+
+  <div id="toast"></div>
+
+  <!-- Firebase SDK (versão modular via CDN) -->
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      getDocs,
+      deleteDoc,
+      doc,
+      query,
+      orderBy,
+      serverTimestamp,
+      writeBatch
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // ── Configuração Firebase ──────────────────────────────────────
+    const firebaseConfig = {
+      apiKey: "AIzaSyCU5jtbZ4WAMGHwe6Zo5Tcb8yy6ZrqpJ8s",
+      authDomain: "compra-de-baixada.firebaseapp.com",
+      projectId: "compra-de-baixada",
+      storageBucket: "compra-de-baixada.firebasestorage.app",
+      messagingSenderId: "41201677763",
+      appId: "1:41201677763:web:725b20d59800cf35b1b976"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
+
+    // ── Status de conexão ─────────────────────────────────────────
+    const statusEl = document.getElementById('status-firebase');
+    function setStatus(tipo, msg) {
+      statusEl.className = tipo;
+      statusEl.textContent = msg;
+    }
+
+    // ── Toast helper ──────────────────────────────────────────────
+    function toast(msg, emoji = "✅") {
+      const el = document.getElementById('toast');
+      el.innerHTML = `${emoji} ${msg}`;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 3000);
+    }
+
+    // ── Variáveis globais ─────────────────────────────────────────
+    let historico = [];   // cache local para filtro rápido
+    let contadorPassagens = 0;
+    const imagensPassagens = {};
+
+    // ── Carregar histórico do Firestore ───────────────────────────
+    async function carregarHistorico() {
+      try {
+        setStatus('carregando', '⏳ Carregando dados...');
+        const q = query(collection(db, 'folgas'), orderBy('timestamp', 'desc'));
+        const snap = await getDocs(q);
+        historico = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setStatus('conectado', '🔥 Firebase conectado — dados em nuvem');
+        return historico;
+      } catch(e) {
+        setStatus('erro', '❌ Erro ao conectar: ' + e.message);
+        toast('Falha na conexão com Firebase', '❌');
+        return [];
+      }
+    }
+
+    // ── Renderizar tabela de histórico ────────────────────────────
+    function renderizarHistorico(lista) {
+      const corpo = document.getElementById('corpoHist');
+      const loadEl = document.getElementById('hist-loading');
+      loadEl.style.display = 'none';
+
+      let soma = 0;
+      if (!lista || lista.length === 0) {
+        corpo.innerHTML = `<tr><td colspan="4" style="text-align:center;color:#aaa;padding:20px">Nenhum registro encontrado</td></tr>`;
+      } else {
+        corpo.innerHTML = lista.map(item => {
+          soma += parseFloat(item.total || 0);
+          return `<tr>
+            <td>${item.data}</td>
+            <td><b>${item.nome}</b></td>
+            <td>R$ ${parseFloat(item.total).toFixed(2)}</td>
+            <td><button onclick="window.excluirRegistro('${item.id}')" style="color:red;border:none;background:none;cursor:pointer;font-size:12px">Remover</button></td>
+          </tr>`;
+        }).join('');
+      }
+      document.getElementById('gastoTotalAcumulado').textContent =
+        soma.toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+    }
+
+    // ── Salvar registro no Firestore ──────────────────────────────
+    async function salvarRegistro(registro) {
+      const docRef = await addDoc(collection(db, 'folgas'), {
+        ...registro,
+        timestamp: serverTimestamp()
+      });
+      return docRef.id;
+    }
+
+    // ── Excluir registro ──────────────────────────────────────────
+    window.excluirRegistro = async function(id) {
+      if (!confirm('Excluir este registro do banco de dados?')) return;
+      try {
+        await deleteDoc(doc(db, 'folgas', id));
+        historico = historico.filter(h => h.id !== id);
+        renderizarHistorico(historico);
+        toast('Registro removido');
+      } catch(e) {
+        toast('Erro ao remover: ' + e.message, '❌');
+      }
+    };
+
+    // ── Limpar todo o histórico ───────────────────────────────────
+    window.limparHistorico = async function() {
+      if (!confirm('⚠️ Deseja apagar TODO o histórico do banco de dados? Esta ação é irreversível!')) return;
+      try {
+        toast('Limpando dados...', '⏳');
+        const snap = await getDocs(collection(db, 'folgas'));
+        const batch = writeBatch(db);
+        snap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+        historico = [];
+        renderizarHistorico([]);
+        toast('Histórico limpo com sucesso');
+      } catch(e) {
+        toast('Erro ao limpar: ' + e.message, '❌');
+      }
+    };
+
+    // ── Filtrar histórico ─────────────────────────────────────────
+    window.filtrarHistorico = function() {
+      const busca = document.getElementById('buscaHist').value.toLowerCase();
+      const filtrado = historico.filter(h => h.nome.toLowerCase().includes(busca));
+      renderizarHistorico(filtrado);
+    };
+
+    // ── Passagens ─────────────────────────────────────────────────
+    window.adicionarCampoPassagem = function() {
+      contadorPassagens++;
+      const id = contadorPassagens;
+      const html = `
+        <div id="passagem-row-${id}" style="background:#f7f8fa;padding:10px;border-radius:8px;margin-bottom:10px;border:1px solid #dde3ea">
+          <div style="display:flex;gap:5px;margin-bottom:5px">
+            <input type="text" id="desc-pass-${id}" placeholder="Ex: Trecho ${id}" style="margin-bottom:0;flex:2">
+            <input type="number" id="val-pass-${id}" placeholder="R$" style="margin-bottom:0;flex:1">
+          </div>
+          <input type="file" accept="image/*" onchange="lerImagemPassagem(this, ${id})" style="font-size:10px">
+          <button onclick="removerPassagem(${id})" style="color:red;background:none;border:none;font-size:10px;cursor:pointer;margin-top:5px">Remover trecho</button>
+        </div>`;
+      document.getElementById('lista-passagens-input').insertAdjacentHTML('beforeend', html);
+    };
+
+    window.lerImagemPassagem = function(input, id) {
+      if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = e => { imagensPassagens[id] = e.target.result; };
+        reader.readAsDataURL(input.files[0]);
+      }
+    };
+
+    window.removerPassagem = function(id) {
+      const row = document.getElementById(`passagem-row-${id}`);
+      if (row) row.remove();
+      delete imagensPassagens[id];
+    };
+
+    // ── Gerar relatório e salvar ──────────────────────────────────
+    window.gerarRelatorio = async function() {
+      const nome = document.getElementById('nome').value.trim();
+      const sal  = parseFloat(document.getElementById('salario').value);
+      const dias = parseInt(document.getElementById('periodo').value);
+      const selectObj = document.getElementById('periodo');
+      const regraTexto = selectObj.options[selectObj.selectedIndex].text;
+
+      if (!nome || !sal || !dias) {
+        toast('Preencha Nome, Salário e Regra!', '⚠️'); return;
+      }
+
+      const btnGerar = document.getElementById('btnGerar');
+      btnGerar.innerHTML = '<span class="spinner"></span> Salvando...';
+      btnGerar.disabled = true;
+
+      const indeniza = (sal / 220 * 8) * dias;
+      let totalPassagens = 0;
+      let htmlPassagensRel = '';
+      let htmlPrintsRel = '';
+      const passagensData = [];
+
+      document.querySelectorAll('[id^="passagem-row-"]').forEach(row => {
+        const id = row.id.split('-').pop();
+        const desc  = document.getElementById(`desc-pass-${id}`).value || `Trecho ${id}`;
+        const valor = parseFloat(document.getElementById(`val-pass-${id}`).value) || 0;
+        totalPassagens += valor;
+        passagensData.push({ desc, valor });
+        htmlPassagensRel += `<tr><td style="padding:10px;border:1px solid #ddd">${desc}</td><td style="padding:10px;border:1px solid #ddd;text-align:right">R$ ${valor.toFixed(2)}</td></tr>`;
+        if (imagensPassagens[id]) htmlPrintsRel += `<img src="${imagensPassagens[id]}" style="max-width:48%;border:1px solid #ccc;border-radius:5px;margin-bottom:5px">`;
+      });
+
+      const totalGeral = indeniza + totalPassagens;
+      const data = new Date().toLocaleDateString('pt-BR');
+
+      // Montar relatório visual
+      document.getElementById('rel-nome').innerText = nome;
+      document.getElementById('rel-data').innerText = data;
+      document.getElementById('rel-sal').innerText = sal.toFixed(2);
+      document.getElementById('rel-dias').innerText = dias;
+      document.getElementById('rel-val-indeniza').innerText = indeniza.toFixed(2);
+      document.getElementById('rel-lista-passagens').innerHTML = htmlPassagensRel;
+      document.getElementById('rel-total').innerText = totalGeral.toFixed(2);
+      document.getElementById('rel-prints-container').innerHTML = htmlPrintsRel;
+      document.getElementById('rel-regra-txt').innerText = regraTexto;
+
+      // Salvar no Firestore
+      try {
+        const registro = {
+          data,
+          nome,
+          salario: sal,
+          dias,
+          regra: regraTexto,
+          indeniza: indeniza.toFixed(2),
+          passagens: passagensData,
+          totalPassagens: totalPassagens.toFixed(2),
+          total: totalGeral.toFixed(2)
+        };
+        const novoId = await salvarRegistro(registro);
+        historico.unshift({ id: novoId, ...registro });
+
+        document.getElementById('relatorio').style.display = 'block';
+        document.getElementById('btnPrint').style.display = 'block';
+        toast('Salvo no Firebase com sucesso!');
+        window.scrollTo(0, document.body.scrollHeight);
+      } catch(e) {
+        toast('Erro ao salvar: ' + e.message, '❌');
+      } finally {
+        btnGerar.innerHTML = 'GERAR RELATÓRIO E SALVAR';
+        btnGerar.disabled = false;
+      }
+    };
+
+    // ── Troca de abas ─────────────────────────────────────────────
+    window.mudarAba = function(btn, id) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+      document.querySelectorAll('.aba-content').forEach(a => a.style.display = 'none');
+      btn.classList.add('on');
+      document.getElementById(id).style.display = 'block';
+      if (id === 'aba-hist') {
+        document.getElementById('hist-loading').style.display = 'block';
+        carregarHistorico().then(renderizarHistorico);
+      }
+    };
+
+    // ── Init ──────────────────────────────────────────────────────
+    carregarHistorico().then(renderizarHistorico);
+  </script>
+
+</body>
+</html>
