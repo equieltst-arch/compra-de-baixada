@@ -25,12 +25,22 @@
     
     label{display:block;font-size:11px;font-weight:700;color:#0a1f3d;margin-bottom:5px;text-transform:uppercase}
     input, select{width:100%;border:1.5px solid #dde3ea;border-radius:8px;padding:11px;font-size:14px;outline:none;margin-bottom:12px;background:#fcfdfe}
-    
+    input:disabled{background:#f0f0f0;color:#aaa;cursor:not-allowed}
+
     .btn-calc{width:100%;background:#0a1f3d;color:white;border:none;border-radius:8px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px}
     .btn-print{background:#8b0000;display:none}
 
     .total-card{background:#fdf2f2;border:2px solid #8b0000;border-radius:10px;padding:15px;margin-bottom:15px;text-align:center}
     .total-val{font-size:22px;font-weight:800;color:#8b0000}
+
+    /* Badge de tipo especial */
+    .badge-regra{display:none;padding:8px 12px;border-radius:8px;font-size:11px;font-weight:700;text-align:center;margin-bottom:12px;letter-spacing:.5px;text-transform:uppercase}
+    .badge-demissao{background:#fff3cd;color:#856404;border:1.5px solid #ffc107}
+    .badge-rescisao{background:#fde8e8;color:#8b0000;border:1.5px solid #c0392b}
+
+    /* Campo salário com animação */
+    #campo-salario{transition:opacity .3s, max-height .3s;overflow:hidden}
+    #campo-salario.oculto{opacity:0;max-height:0;margin:0;pointer-events:none}
 
     table{width:100%;border-collapse:collapse;font-size:12px}
     thead th{background:#0a1f3d;color:white;padding:10px;text-align:left;font-size:10px;text-transform:uppercase}
@@ -87,19 +97,28 @@
   <div id="aba-calc" class="aba-content no-print">
     <div class="tbox">
       <div class="sdiv">Novo Cálculo de Indenização</div>
-      <label>Nome do Colaborador</label>
-      <input type="text" id="nome" placeholder="Nome Completo">
 
 ```
-  <label>Salário Base (R$)</label>
-  <input type="number" id="salario" placeholder="Ex: 3500">
+  <label>Nome do Colaborador</label>
+  <input type="text" id="nome" placeholder="Nome Completo">
+
+  <!-- Badge informativo para regras especiais -->
+  <div id="badge-regra" class="badge-regra"></div>
+
+  <!-- Campo salário (oculto em demissão/rescisão) -->
+  <div id="campo-salario">
+    <label>Salário Base (R$)</label>
+    <input type="number" id="salario" placeholder="Ex: 3500">
+  </div>
 
   <label>Regra de Distância / Período</label>
-  <select id="periodo">
+  <select id="periodo" onchange="onRegraChange()">
     <option value="0">Selecione a regra...</option>
     <option value="2">Até 500 km (60 dias - 2 dias folga)</option>
     <option value="5">501 km a 1.000 km (75 dias - 5 dias folga)</option>
     <option value="7">Acima de 1.000 km (90 dias - 7 dias folga)</option>
+    <option value="demissao">Pedido de Demissão</option>
+    <option value="rescisao">Rescisão de Contrato</option>
   </select>
 
   <label>Passagens / Trechos</label>
@@ -126,7 +145,7 @@
       <div style="overflow-x:auto">
         <table>
           <thead>
-            <tr><th>Data</th><th>Nome</th><th>Total (R$)</th><th>Ação</th></tr>
+            <tr><th>Data</th><th>Nome</th><th>Regra</th><th>Total (R$)</th><th>Ação</th></tr>
           </thead>
           <tbody id="corpoHist"></tbody>
         </table>
@@ -153,7 +172,7 @@
     <div style="text-align:center;margin-bottom:10px">
       <img src="logo-pch.png" style="width:120px;height:auto" onerror="this.style.display='none'">
     </div>
-    <h2 style="text-align:center;border-bottom:2px solid #0a1f3d;padding-bottom:10px;font-size:18px">DEMONSTRATIVO DE COMPRA DE FOLGAS</h2>
+    <h2 id="rel-titulo" style="text-align:center;border-bottom:2px solid #0a1f3d;padding-bottom:10px;font-size:18px">DEMONSTRATIVO DE COMPRA DE FOLGAS</h2>
     <br>
     <p><strong>UNIDADE:</strong> PCH LEBON REGIS</p>
     <p><strong>DATA:</strong> <span id="rel-data"></span></p>
@@ -162,7 +181,7 @@
     <br>
 
 ```
-<div style="background:#f9f9f9;padding:12px;border-radius:8px;border:1px solid #ddd;margin-bottom:15px">
+<div id="rel-bloco-politica" style="background:#f9f9f9;padding:12px;border-radius:8px;border:1px solid #ddd;margin-bottom:15px">
   <p style="font-size:11px;font-weight:bold;color:#0a1f3d;margin-bottom:5px">POLÍTICA DE DESLOCAMENTO E FOLGAS:</p>
   <ul style="font-size:10px;list-style:none;line-height:1.5;color:#444">
     <li><strong>1. Até 500 km:</strong> A cada 60 dias de trabalho, direito a 2 dias de folga (Seg a Ter).</li>
@@ -175,16 +194,18 @@
   </p>
 </div>
 
+<!-- Bloco alternativo para demissão/rescisão -->
+<div id="rel-bloco-especial" style="display:none;background:#fdf2f2;padding:12px;border-radius:8px;border:2px solid #8b0000;margin-bottom:15px">
+  <p id="rel-especial-titulo" style="font-size:12px;font-weight:bold;color:#8b0000;margin-bottom:6px"></p>
+  <p id="rel-especial-desc" style="font-size:10px;color:#444;line-height:1.6"></p>
+</div>
+
 <table style="width:100%;border-collapse:collapse;border:1px solid #ddd">
   <tr style="background:#f4f4f4">
     <th style="padding:10px;border:1px solid #ddd;text-align:left">Descrição do Lançamento</th>
     <th style="padding:10px;border:1px solid #ddd;text-align:right">Valor</th>
   </tr>
-  <tr>
-    <td style="padding:10px;border:1px solid #ddd">Indenização de <span id="rel-dias"></span> dias de folga remunerada (Base R$ <span id="rel-sal"></span>)</td>
-    <td style="padding:10px;border:1px solid #ddd;text-align:right">R$ <span id="rel-val-indeniza"></span></td>
-  </tr>
-  <tbody id="rel-lista-passagens"></tbody>
+  <tbody id="rel-lista-itens"></tbody>
   <tr style="font-weight:bold;background:#eee;font-size:14px">
     <td style="padding:10px;border:1px solid #ddd">VALOR LÍQUIDO A RECEBER</td>
     <td style="padding:10px;border:1px solid #ddd;text-align:right;color:#1a6b35">R$ <span id="rel-total"></span></td>
@@ -206,7 +227,7 @@
 
   <div id="toast"></div>
 
-  <!-- Firebase SDK (versão modular via CDN) -->
+  <!-- Firebase SDK -->
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -223,7 +244,6 @@
       writeBatch
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    // ── Configuração Firebase ──────────────────────────────────────
     const firebaseConfig = {
       apiKey: "AIzaSyCU5jtbZ4WAMGHwe6Zo5Tcb8yy6ZrqpJ8s",
       authDomain: "compra-de-baixada.firebaseapp.com",
@@ -236,14 +256,12 @@
     const app = initializeApp(firebaseConfig);
     const db  = getFirestore(app);
 
-    // ── Status de conexão ─────────────────────────────────────────
     const statusEl = document.getElementById('status-firebase');
     function setStatus(tipo, msg) {
       statusEl.className = tipo;
       statusEl.textContent = msg;
     }
 
-    // ── Toast helper ──────────────────────────────────────────────
     function toast(msg, emoji = "✅") {
       const el = document.getElementById('toast');
       el.innerHTML = `${emoji} ${msg}`;
@@ -251,12 +269,39 @@
       setTimeout(() => el.classList.remove('show'), 3000);
     }
 
-    // ── Variáveis globais ─────────────────────────────────────────
-    let historico = [];   // cache local para filtro rápido
+    let historico = [];
     let contadorPassagens = 0;
     const imagensPassagens = {};
 
-    // ── Carregar histórico do Firestore ───────────────────────────
+    // ── Detecta se é regra especial (sem salário) ─────────────────
+    function isRegraEspecial(val) {
+      return val === 'demissao' || val === 'rescisao';
+    }
+
+    // ── Atualiza UI ao trocar a regra ─────────────────────────────
+    window.onRegraChange = function() {
+      const val = document.getElementById('periodo').value;
+      const campSal = document.getElementById('campo-salario');
+      const badge   = document.getElementById('badge-regra');
+
+      if (val === 'demissao') {
+        campSal.classList.add('oculto');
+        badge.style.display = 'block';
+        badge.className = 'badge-regra badge-demissao';
+        badge.textContent = '⚠️ PEDIDO DE DEMISSÃO — Sem indenização de folgas. Apenas passagens/despesas.';
+      } else if (val === 'rescisao') {
+        campSal.classList.add('oculto');
+        badge.style.display = 'block';
+        badge.className = 'badge-regra badge-rescisao';
+        badge.textContent = '🔴 RESCISÃO DE CONTRATO — Sem indenização de folgas. Apenas passagens/despesas.';
+      } else {
+        campSal.classList.remove('oculto');
+        badge.style.display = 'none';
+        badge.className = 'badge-regra';
+      }
+    };
+
+    // ── Carregar histórico ────────────────────────────────────────
     async function carregarHistorico() {
       try {
         setStatus('carregando', '⏳ Carregando dados...');
@@ -272,7 +317,6 @@
       }
     }
 
-    // ── Renderizar tabela de histórico ────────────────────────────
     function renderizarHistorico(lista) {
       const corpo = document.getElementById('corpoHist');
       const loadEl = document.getElementById('hist-loading');
@@ -280,13 +324,22 @@
 
       let soma = 0;
       if (!lista || lista.length === 0) {
-        corpo.innerHTML = `<tr><td colspan="4" style="text-align:center;color:#aaa;padding:20px">Nenhum registro encontrado</td></tr>`;
+        corpo.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#aaa;padding:20px">Nenhum registro encontrado</td></tr>`;
       } else {
         corpo.innerHTML = lista.map(item => {
           soma += parseFloat(item.total || 0);
+          // Badge colorido para tipo da regra na tabela
+          const regra = item.regra || '—';
+          let regraBadge = regra;
+          if (regra.toLowerCase().includes('demissão') || regra.toLowerCase().includes('demissao')) {
+            regraBadge = `<span style="background:#fff3cd;color:#856404;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700">DEMISSÃO</span>`;
+          } else if (regra.toLowerCase().includes('rescisão') || regra.toLowerCase().includes('rescisao')) {
+            regraBadge = `<span style="background:#fde8e8;color:#8b0000;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700">RESCISÃO</span>`;
+          }
           return `<tr>
             <td>${item.data}</td>
             <td><b>${item.nome}</b></td>
+            <td>${regraBadge}</td>
             <td>R$ ${parseFloat(item.total).toFixed(2)}</td>
             <td><button onclick="window.excluirRegistro('${item.id}')" style="color:red;border:none;background:none;cursor:pointer;font-size:12px">Remover</button></td>
           </tr>`;
@@ -296,7 +349,6 @@
         soma.toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
     }
 
-    // ── Salvar registro no Firestore ──────────────────────────────
     async function salvarRegistro(registro) {
       const docRef = await addDoc(collection(db, 'folgas'), {
         ...registro,
@@ -305,7 +357,6 @@
       return docRef.id;
     }
 
-    // ── Excluir registro ──────────────────────────────────────────
     window.excluirRegistro = async function(id) {
       if (!confirm('Excluir este registro do banco de dados?')) return;
       try {
@@ -318,7 +369,6 @@
       }
     };
 
-    // ── Limpar todo o histórico ───────────────────────────────────
     window.limparHistorico = async function() {
       if (!confirm('⚠️ Deseja apagar TODO o histórico do banco de dados? Esta ação é irreversível!')) return;
       try {
@@ -335,14 +385,12 @@
       }
     };
 
-    // ── Filtrar histórico ─────────────────────────────────────────
     window.filtrarHistorico = function() {
       const busca = document.getElementById('buscaHist').value.toLowerCase();
       const filtrado = historico.filter(h => h.nome.toLowerCase().includes(busca));
       renderizarHistorico(filtrado);
     };
 
-    // ── Passagens ─────────────────────────────────────────────────
     window.adicionarCampoPassagem = function() {
       contadorPassagens++;
       const id = contadorPassagens;
@@ -372,23 +420,31 @@
       delete imagensPassagens[id];
     };
 
-    // ── Gerar relatório e salvar ──────────────────────────────────
+    // ── Gerar relatório ───────────────────────────────────────────
     window.gerarRelatorio = async function() {
-      const nome = document.getElementById('nome').value.trim();
-      const sal  = parseFloat(document.getElementById('salario').value);
-      const dias = parseInt(document.getElementById('periodo').value);
+      const nome      = document.getElementById('nome').value.trim();
+      const periodoVal = document.getElementById('periodo').value;
       const selectObj = document.getElementById('periodo');
       const regraTexto = selectObj.options[selectObj.selectedIndex].text;
+      const especial  = isRegraEspecial(periodoVal);
 
-      if (!nome || !sal || !dias) {
-        toast('Preencha Nome, Salário e Regra!', '⚠️'); return;
+      // Validação
+      if (!nome) { toast('Informe o nome do colaborador!', '⚠️'); return; }
+      if (periodoVal === '0') { toast('Selecione a regra!', '⚠️'); return; }
+
+      let sal = 0, dias = 0, indeniza = 0;
+
+      if (!especial) {
+        sal  = parseFloat(document.getElementById('salario').value);
+        dias = parseInt(periodoVal);
+        if (!sal) { toast('Informe o salário base!', '⚠️'); return; }
+        indeniza = (sal / 220 * 8) * dias;
       }
 
       const btnGerar = document.getElementById('btnGerar');
       btnGerar.innerHTML = '<span class="spinner"></span> Salvando...';
       btnGerar.disabled = true;
 
-      const indeniza = (sal / 220 * 8) * dias;
       let totalPassagens = 0;
       let htmlPassagensRel = '';
       let htmlPrintsRel = '';
@@ -396,8 +452,8 @@
 
       document.querySelectorAll('[id^="passagem-row-"]').forEach(row => {
         const id = row.id.split('-').pop();
-        const desc  = document.getElementById(`desc-pass-${id}`).value || `Trecho ${id}`;
-        const valor = parseFloat(document.getElementById(`val-pass-${id}`).value) || 0;
+        const desc  = document.getElementById(`desc-pass-${id}`)?.value || `Trecho ${id}`;
+        const valor = parseFloat(document.getElementById(`val-pass-${id}`)?.value) || 0;
         totalPassagens += valor;
         passagensData.push({ desc, valor });
         htmlPassagensRel += `<tr><td style="padding:10px;border:1px solid #ddd">${desc}</td><td style="padding:10px;border:1px solid #ddd;text-align:right">R$ ${valor.toFixed(2)}</td></tr>`;
@@ -407,26 +463,55 @@
       const totalGeral = indeniza + totalPassagens;
       const data = new Date().toLocaleDateString('pt-BR');
 
-      // Montar relatório visual
+      // ── Montar relatório visual ──
       document.getElementById('rel-nome').innerText = nome;
       document.getElementById('rel-data').innerText = data;
-      document.getElementById('rel-sal').innerText = sal.toFixed(2);
-      document.getElementById('rel-dias').innerText = dias;
-      document.getElementById('rel-val-indeniza').innerText = indeniza.toFixed(2);
-      document.getElementById('rel-lista-passagens').innerHTML = htmlPassagensRel;
+      document.getElementById('rel-regra-txt').innerText = regraTexto;
       document.getElementById('rel-total').innerText = totalGeral.toFixed(2);
       document.getElementById('rel-prints-container').innerHTML = htmlPrintsRel;
-      document.getElementById('rel-regra-txt').innerText = regraTexto;
 
-      // Salvar no Firestore
+      // Título e blocos específicos por tipo
+      if (especial) {
+        const isDemissao = periodoVal === 'demissao';
+        document.getElementById('rel-titulo').textContent =
+          isDemissao ? 'DEMONSTRATIVO — PEDIDO DE DEMISSÃO' : 'DEMONSTRATIVO — RESCISÃO DE CONTRATO';
+
+        document.getElementById('rel-bloco-politica').style.display = 'none';
+        const blocoEsp = document.getElementById('rel-bloco-especial');
+        blocoEsp.style.display = 'block';
+        document.getElementById('rel-especial-titulo').textContent =
+          isDemissao ? '⚠️ PEDIDO DE DEMISSÃO' : '🔴 RESCISÃO DE CONTRATO';
+        document.getElementById('rel-especial-desc').textContent =
+          isDemissao
+            ? 'O colaborador solicitou rescisão voluntária do contrato de trabalho. Não há indenização de folgas. O relatório registra apenas as passagens e despesas de retorno ao domicílio.'
+            : 'O contrato de trabalho foi rescindido pela empresa. Não há indenização de folgas registrada neste documento. O relatório registra apenas as passagens e despesas de retorno ao domicílio.';
+
+        // Tabela só com passagens
+        document.getElementById('rel-lista-itens').innerHTML =
+          passagensData.length > 0
+            ? htmlPassagensRel
+            : `<tr><td style="padding:10px;border:1px solid #ddd;color:#aaa;font-style:italic" colspan="2">Nenhuma passagem/despesa lançada</td></tr>`;
+      } else {
+        document.getElementById('rel-titulo').textContent = 'DEMONSTRATIVO DE COMPRA DE FOLGAS';
+        document.getElementById('rel-bloco-politica').style.display = 'block';
+        document.getElementById('rel-bloco-especial').style.display = 'none';
+
+        // Tabela com indenização + passagens
+        document.getElementById('rel-sal') && (document.getElementById('rel-sal').innerText = sal.toFixed(2));
+        document.getElementById('rel-dias') && (document.getElementById('rel-dias').innerText = dias);
+        document.getElementById('rel-val-indeniza') && (document.getElementById('rel-val-indeniza').innerText = indeniza.toFixed(2));
+        document.getElementById('rel-lista-itens').innerHTML =
+          `<tr><td style="padding:10px;border:1px solid #ddd">Indenização de ${dias} dias de folga remunerada (Base R$ ${sal.toFixed(2)})</td><td style="padding:10px;border:1px solid #ddd;text-align:right">R$ ${indeniza.toFixed(2)}</td></tr>`
+          + htmlPassagensRel;
+      }
+
+      // ── Salvar no Firestore ──
       try {
         const registro = {
           data,
           nome,
-          salario: sal,
-          dias,
           regra: regraTexto,
-          indeniza: indeniza.toFixed(2),
+          ...(especial ? {} : { salario: sal, dias, indeniza: indeniza.toFixed(2) }),
           passagens: passagensData,
           totalPassagens: totalPassagens.toFixed(2),
           total: totalGeral.toFixed(2)
@@ -446,7 +531,6 @@
       }
     };
 
-    // ── Troca de abas ─────────────────────────────────────────────
     window.mudarAba = function(btn, id) {
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
       document.querySelectorAll('.aba-content').forEach(a => a.style.display = 'none');
@@ -458,7 +542,6 @@
       }
     };
 
-    // ── Init ──────────────────────────────────────────────────────
     carregarHistorico().then(renderizarHistorico);
   </script>
 
